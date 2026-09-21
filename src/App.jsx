@@ -69,74 +69,6 @@ const STATUS_STYLES = {
   Sold:      { bg: "#E9ECF6", fg: "#243B8A", dot: "#3554C8" },
 };
 
-// Your current listed inventory — importable in one click from the lot page.
-const SEED_CARS = [
-  { year: "2015", make: "Acura", model: "RDX", trim: "w/Tech AWD SUV", mileage: "119823", color: "Gray", askingPrice: "14290", notes: "3.5L V6 · Auto 6-Speed · AWD · Gray interior · 19/27 mpg · Originally listed $15,500" },
-  { year: "2022", make: "Acura", model: "TLX", trim: "w/Tech Sedan", mileage: "55850", color: "Silver", askingPrice: "29990", notes: "2.0L Turbo I4 272hp · Auto 10-Speed · FWD · Gray interior · 22/31 mpg · Originally listed $31,000" },
-  { year: "2005", make: "Audi", model: "TT", trim: "250hp quattro Roadster", mileage: "123308", color: "Silver", askingPrice: "8290", notes: "3.2L V6 · Auto 6-Speed · AWD · Gray interior · 17/23 mpg · Originally listed $12,500" },
-  { year: "2008", make: "Bentley", model: "Continental", trim: "GT Convertible AWD", mileage: "31365", color: "Silver", askingPrice: "47290", notes: "6.0L W12 Twin Turbo · Auto 6-Speed · AWD · Black interior · 10/17 mpg · Originally listed $47,500" },
-  { year: "2016", make: "BMW", model: "6 Series", trim: "650i xDrive Gran Coupe", mileage: "54010", color: "White", askingPrice: "26290", notes: "4.4L V8 Twin Turbo · Auto 8-Speed · AWD · Black interior · 15/24 mpg · Originally listed $29,000" },
-  { year: "2018", make: "BMW", model: "3 Series", trim: "320i xDrive Sedan", mileage: "74888", color: "White", askingPrice: "16290", notes: "2.0L Turbo I4 180hp · Auto 8-Speed · AWD · Black interior · 23/34 mpg · Originally listed $16,500" },
-  { year: "2016", make: "BMW", model: "X5", trim: "xDrive35i SUV", mileage: "101335", color: "Black", askingPrice: "16290", notes: "3.0L Turbo I6 300hp · Auto 8-Speed · AWD · Brown interior · 18/24 mpg · Originally listed $17,000" },
-  { year: "2017", make: "BMW", model: "X5", trim: "xDrive35i SUV", mileage: "120949", color: "White", askingPrice: "16290", notes: "3.0L I6 Turbo · Auto 8-Speed · AWD · Brown interior · 18/24 mpg · Originally listed $17,500" },
-  { year: "2016", make: "BMW", model: "X3", trim: "xDrive28i SUV", mileage: "130963", color: "Black", askingPrice: "11290", notes: "2.0L I4 Turbo · Auto 8-Speed · AWD · Black interior · 21/28 mpg · Originally listed $14,500" },
-  { year: "2011", make: "BMW", model: "3 Series", trim: "328i Sedan SULEV", mileage: "104090", color: "White", askingPrice: "9290", notes: "3.0L I6 · Auto 6-Speed · RWD · Beige interior · 18/28 mpg · Originally listed $11,500" },
-  { year: "2008", make: "BMW", model: "6 Series", trim: "650i Convertible", mileage: "79482", color: "Gray", askingPrice: "14290", notes: "4.8L V8 · Auto 6-Speed · RWD · Gray interior · 15/23 mpg · Originally listed $14,500" },
-  { year: "2017", make: "BMW", model: "X1", trim: "xDrive28i SUV", mileage: "109494", color: "Silver", askingPrice: "13990", notes: "2.0L Turbo I4 228hp · Auto 8-Speed · AWD · Gray interior · 22/31 mpg · Originally listed $14,500" },
-  { year: "2020", make: "Cadillac", model: "XT6", trim: "Sport 4x4 SUV", mileage: "96011", color: "Blue", askingPrice: "25290", notes: "3.6L V6 310hp · Auto 9-Speed · 4x4 · Black interior · 17/24 mpg · Originally listed $25,500" },
-  { year: "2019", make: "Cadillac", model: "XT5", trim: "Luxury 4x4 SUV", mileage: "121691", color: "Silver", askingPrice: "16290", notes: "3.6L V6 310hp · Auto 8-Speed · 4x4 · Black interior · 18/25 mpg · Originally listed $17,500" },
-  { year: "2004", make: "Chevrolet", model: "SSR", trim: "LS Convertible Pickup", mileage: "15166", color: "Yellow", askingPrice: "26290", notes: "5.3L V8 · Auto 4-Speed · RWD · Black interior · 14/18 mpg · Originally listed $27,500" },
-  { year: "2020", make: "Chevrolet", model: "Malibu", trim: "LS Fleet Sedan", mileage: "64467", color: "Burgundy", askingPrice: "16795", notes: "1.5L I4 Turbo · CVT · FWD · Gray interior · 29/36 mpg · Originally listed $18,500" },
-  { year: "2005", make: "Chevrolet", model: "Corvette", trim: "Convertible", mileage: "40293", color: "Red", askingPrice: "28290", notes: "6.0L V8 · Auto 4-Speed · RWD · Tan interior · 16/24 mpg · Originally listed $28,500" },
-  { year: "2023", make: "Ford", model: "Transit 250", trim: "LWB Low Roof Cargo Van", mileage: "24662", color: "White", askingPrice: "32290", notes: "3.5L V6 · Auto 10-Speed · RWD · Gray interior · Originally listed $34,500" },
-  { year: "2023", make: "Ford", model: "Transit 250", trim: "LWB Low Roof Cargo Van", mileage: "35617", color: "White", askingPrice: "31290", notes: "3.5L V6 · Auto 10-Speed · RWD · Gray interior · Originally listed $33,500" },
-  { year: "2009", make: "Ford", model: "Shelby GT500", trim: "Coupe", mileage: "16402", color: "Red", askingPrice: "46290", notes: "5.4L Supercharged V8 500hp · Manual 6-Speed · RWD · Black interior · 14/20 mpg · Originally listed $48,000" },
-  { year: "2018", make: "Ford", model: "Mustang", trim: "GT Premium Convertible", mileage: "71370", color: "Silver", askingPrice: "28290", notes: "5.0L V8 · Auto 10-Speed · RWD · Black interior · 15/24 mpg · Originally listed $28,500" },
-  { year: "2014", make: "Ford", model: "Mustang", trim: "V6 Fastback", mileage: "112010", color: "Red", askingPrice: "14290", notes: "3.7L V6 · Manual 6-Speed · RWD · Gray interior · 19/29 mpg · Originally listed $14,500" },
-  { year: "2021", make: "Ford", model: "Mustang", trim: "EcoBoost Premium Convertible", mileage: "80277", color: "Black", askingPrice: "23290", notes: "2.3L I4 Turbo · Auto 10-Speed · RWD · Black interior · 20/28 mpg · Originally listed $23,995" },
-  { year: "2020", make: "Ford", model: "Mustang", trim: "EcoBoost Premium Convertible", mileage: "111975", color: "Black", askingPrice: "20290", notes: "2.3L I4 Turbo · Auto 10-Speed · RWD · Gray interior · 20/28 mpg · Originally listed $20,500" },
-  { year: "2014", make: "Ford", model: "Mustang", trim: "V6 Premium Convertible", mileage: "43395", color: "Gray", askingPrice: "20290", notes: "3.7L V6 · Auto 6-Speed · RWD · Black interior · 19/30 mpg · Originally listed $20,500" },
-  { year: "2004", make: "Ford", model: "Thunderbird", trim: "Deluxe Convertible", mileage: "38777", color: "Red", askingPrice: "21995", notes: "3.9L V8 280hp · Auto 5-Speed · RWD · Gray interior · 15/21 mpg · Originally listed $22,500" },
-  { year: "2018", make: "Jeep", model: "Wrangler JK", trim: "Sahara 4x4 SUV", mileage: "49494", color: "White", askingPrice: "24290", notes: "3.6L V6 · Auto 5-Speed · 4x4 · Black interior · 17/21 mpg · Originally listed $26,500" },
-  { year: "2012", make: "Jeep", model: "Wrangler", trim: "Rubicon 4x4 SUV", mileage: "96462", color: "Black", askingPrice: "15790", notes: "3.6L V6 · Manual 6-Speed · 4x4 · Black interior · 17/21 mpg · Originally listed $18,000" },
-  { year: "2017", make: "Land Rover", model: "Discovery", trim: "HSE Td6 AWD SUV", mileage: "77515", color: "Black", askingPrice: "20290", notes: "3.0L V6 Turbo diesel · Auto 8-Speed · AWD · Black interior · 21/26 mpg · Originally listed $26,500" },
-  { year: "2015", make: "Lexus", model: "RX 350", trim: "AWD SUV", mileage: "133805", color: "Black", askingPrice: "15995", notes: "3.5L V6 · Auto 6-Speed · AWD · Black interior · 18/24 mpg · Originally listed $17,500" },
-  { year: "2014", make: "Lexus", model: "RX 350", trim: "AWD SUV", mileage: "111166", color: "White", askingPrice: "17290", notes: "3.5L V6 · Auto 6-Speed · AWD · Tan interior · 18/24 mpg · Originally listed $17,500" },
-  { year: "2011", make: "Lexus", model: "RX 350", trim: "AWD SUV", mileage: "123065", color: "White", askingPrice: "14290", notes: "3.5L V6 · Auto 6-Speed · AWD · Gray interior · 18/24 mpg · Originally listed $14,500" },
-  { year: "2012", make: "Lexus", model: "RX 350", trim: "AWD SUV", mileage: "130877", color: "White", askingPrice: "14290", notes: "3.5L V6 · Auto 6-Speed · AWD · Black interior · 18/24 mpg · Originally listed $14,500" },
-  { year: "2017", make: "Lexus", model: "NX 300h", trim: "AWD Crossover", mileage: "111937", color: "White", askingPrice: "22290", notes: "2.5L Hybrid I4 194hp · CVT · AWD · Black interior · 33/30 mpg · Originally listed $22,500" },
-  { year: "2020", make: "Lexus", model: "ES 350", trim: "Sedan", mileage: "123196", color: "Silver", askingPrice: "22290", notes: "3.5L V6 302hp · Auto 8-Speed · FWD · Black interior · 22/32 mpg · Originally listed $22,500" },
-  { year: "2019", make: "Maserati", model: "Ghibli", trim: "Sedan", mileage: "24839", color: "Black", askingPrice: "27290", notes: "3.0L V6 Twin Turbo · Auto 8-Speed · RWD · Brown interior · 17/24 mpg · Originally listed $32,000" },
-  { year: "2020", make: "Mazda", model: "MX-5 Miata RF", trim: "Grand Touring Convertible", mileage: "64464", color: "White", askingPrice: "24290", notes: "2.0L I4 · Auto 6-Speed · RWD · Black interior · 26/35 mpg · Originally listed $24,500" },
-  { year: "2016", make: "Mercedes-Benz", model: "GL-Class", trim: "GL 450 4MATIC SUV", mileage: "120147", color: "Silver", askingPrice: "15290", notes: "3.0L V6 Twin Turbo · Auto 7-Speed · AWD · Black interior · 17/21 mpg · Originally listed $15,500" },
-  { year: "2013", make: "Mercedes-Benz", model: "C-Class", trim: "C 300 Sport 4MATIC Sedan", mileage: "110686", color: "Black", askingPrice: "10290", notes: "3.5L V6 · Auto 7-Speed · AWD · Black interior · Originally listed $14,500" },
-  { year: "2018", make: "MINI", model: "Countryman", trim: "Cooper ALL4 Crossover", mileage: "84477", color: "Blue", askingPrice: "16290", notes: "1.5L I3 Turbo · Auto 8-Speed · AWD · Black interior · 23/30 mpg · Originally listed $17,500" },
-  { year: "2015", make: "Nissan", model: "Sentra", trim: "SV Sedan", mileage: "101501", color: "Silver", askingPrice: "8290", notes: "1.8L I4 · CVT · FWD · Gray interior · 29/39 mpg · Originally listed $9,500" },
-  { year: "2007", make: "Nissan", model: "Altima Hybrid", trim: "Sedan", mileage: "147747", color: "Green", askingPrice: "6290", notes: "2.5L I4 Hybrid · CVT · FWD · Gray interior · 35/33 mpg · Originally listed $6,500" },
-  { year: "2015", make: "Nissan", model: "Pathfinder", trim: "Platinum 4x4 SUV", mileage: "62214", color: "White", askingPrice: "16290", notes: "3.5L V6 · CVT · 4x4 · Beige interior · 19/26 mpg · Originally listed $16,500" },
-  { year: "2014", make: "Porsche", model: "Cayenne", trim: "S AWD SUV", mileage: "88003", color: "White", askingPrice: "24290", notes: "4.8L V8 · Auto 8-Speed · AWD · Black interior · 16/22 mpg · Originally listed $25,000" },
-  { year: "2010", make: "Porsche", model: "Panamera", trim: "4S AWD Sedan", mileage: "70000", color: "Blue", askingPrice: "24290", notes: "4.8L V8 · Auto 7-Speed · AWD · Black interior · 16/24 mpg · Originally listed $28,500" },
-  { year: "2019", make: "Subaru", model: "WRX", trim: "Limited AWD Sedan CVT", mileage: "84786", color: "White", askingPrice: "23290", notes: "2.0L Turbo H4 268hp · CVT · AWD · Black interior · 18/24 mpg · Originally listed $23,500" },
-  { year: "2017", make: "Subaru", model: "WRX", trim: "Premium AWD Sedan 6M", mileage: "116410", color: "Blue", askingPrice: "18290", notes: "2.0L Turbo H4 268hp · Manual 6-Speed · AWD · Black interior · 20/27 mpg · Originally listed $18,500" },
-  { year: "2017", make: "Subaru", model: "WRX", trim: "AWD Sedan", mileage: "57233", color: "White", askingPrice: "22290", notes: "2.0L Turbo H4 268hp · Manual 6-Speed · AWD · Black interior · 20/27 mpg · Originally listed $22,500" },
-  { year: "2015", make: "Subaru", model: "XV Crosstrek", trim: "2.0i Premium AWD Crossover", mileage: "95794", color: "Tan", askingPrice: "15290", notes: "2.0L H4 · CVT · AWD · Black interior · 26/34 mpg · Originally listed $15,500" },
-  { year: "2015", make: "Subaru", model: "WRX", trim: "Limited AWD Sedan 6M", mileage: "110017", color: "Red", askingPrice: "17290", notes: "2.0L Turbo H4 268hp · Manual 6-Speed · AWD · Gray interior · 21/28 mpg · Originally listed $17,500" },
-  { year: "2018", make: "Toyota", model: "Highlander", trim: "XLE AWD SUV", mileage: "80925", color: "Burgundy", askingPrice: "24290", notes: "3.5L V6 295hp · Auto 8-Speed · AWD · Black interior · 19/26 mpg · Originally listed $24,500" },
-  { year: "2015", make: "Toyota", model: "RAV4", trim: "Limited AWD SUV", mileage: "126495", color: "Black", askingPrice: "16290", notes: "2.5L I4 · Auto 6-Speed · AWD · Black interior · 22/29 mpg · Originally listed $17,500" },
-  { year: "2017", make: "Toyota", model: "Camry", trim: "SE Sedan", mileage: "123404", color: "Silver", askingPrice: "13790", notes: "2.5L I4 · Auto 6-Speed · FWD · Gray interior · 24/33 mpg · Originally listed $14,500" },
-  { year: "2015", make: "Toyota", model: "Corolla", trim: "LE Sedan", mileage: "111616", color: "Tan", askingPrice: "13290", notes: "1.8L I4 · CVT · FWD · Gray interior · 29/38 mpg · Originally listed $13,500" },
-  { year: "2015", make: "Toyota", model: "Venza", trim: "Limited AWD Crossover", mileage: "152408", color: "Gray", askingPrice: "13290", notes: "3.5L V6 268hp · Auto 6-Speed · AWD · Gray interior · 18/25 mpg · Originally listed $13,500" },
-  { year: "2015", make: "Toyota", model: "Venza", trim: "XLE AWD 4cyl Crossover", mileage: "110079", color: "Gray", askingPrice: "15290", notes: "2.7L I4 · Auto 6-Speed · AWD · Black interior · 20/26 mpg · Originally listed $16,500" },
-  { year: "2011", make: "Toyota", model: "RAV4", trim: "Limited 4x4 SUV", mileage: "99433", color: "Gold", askingPrice: "12290", notes: "2.5L I4 179hp · Auto 4-Speed · 4x4 · Gray interior · 21/27 mpg · Originally listed $12,500" },
-  { year: "2020", make: "Toyota", model: "Prius Prime", trim: "XLE Hatchback", mileage: "48603", color: "Gray", askingPrice: "26290", notes: "1.8L I4 Plug-in Hybrid · CVT · FWD · Gray interior · 145/121 mpge · Originally listed $30,600" },
-  { year: "2019", make: "Volkswagen", model: "Jetta", trim: "SE Sedan", mileage: "25018", color: "Black", askingPrice: "18290", notes: "1.4L I4 Turbo · Auto 8-Speed · FWD · Tan interior · 30/40 mpg · Originally listed $22,500" },
-  { year: "2016", make: "Volkswagen", model: "Jetta", trim: "1.4T S Sedan 6A", mileage: "96885", color: "Blue", askingPrice: "10290", notes: "1.4L I4 Turbo · Auto 6-Speed · FWD · Gray interior · 28/39 mpg · Originally listed $12,500" },
-  { year: "2013", make: "Volkswagen", model: "Tiguan", trim: "SE 4Motion SUV w/Sunroof & Nav", mileage: "99197", color: "Red", askingPrice: "10290", notes: "2.0L I4 Turbo · Auto 6-Speed · AWD · Tan interior · 20/26 mpg · Originally listed $15,500" },
-  { year: "2018", make: "Volvo", model: "S60", trim: "T5 Inscription AWD Sedan", mileage: "76654", color: "Silver", askingPrice: "16290", notes: "2.0L I4 Turbo · Auto 8-Speed · AWD · Black interior · 22/33 mpg · Originally listed $18,500" },
-];
-
-const seedSig = (c) => [c.year, c.make, c.model, num(c.mileage)].join("|").toLowerCase();
-
 const CUST_STATUSES = ["New lead", "Contacted", "Test drive", "Negotiating", "Bought", "Lost"];const CUST_STYLES = {
   "New lead":    { bg: "#E9ECF6", fg: "#243B8A" },
   "Contacted":   { bg: "#EDEEF1", fg: "#3A3E46" },
@@ -358,20 +290,6 @@ function Dashboard({ session, onLogout }) {
   };
   const removeCar = (id) => { persistCars(cars.filter((c) => c.id !== id)); setConfirmDelete(null); };
 
-  const importSeed = () => {
-    const existing = new Set(cars.map(seedSig));
-    const fresh = SEED_CARS.filter((s) => !existing.has(seedSig(s)));
-    if (fresh.length === 0) return;
-    const usedStock = new Set(cars.map((c) => c.stockNumber));
-    let n = cars.length;
-    const stamped = fresh.map((s) => {
-      let stock;
-      do { n++; stock = "BAB-" + String(n).padStart(3, "0"); } while (usedStock.has(stock));
-      usedStock.add(stock);
-      return { ...emptyCar, ...s, stockNumber: stock, status: "Available", id: "c" + Date.now() + Math.random().toString(36).slice(2, 6) + n };
-    });
-    persistCars([...cars, ...stamped]);
-  };
   const markSold = (id, soldPrice, dateSold) => {
     persistCars(cars.map((c) => (c.id === id ? { ...c, status: "Sold", soldPrice, dateSold } : c)));
     setSelling(null);
@@ -436,8 +354,7 @@ function Dashboard({ session, onLogout }) {
             {saveErr && <div className="err-box">{saveErr}</div>}
             {page === "lot" && (
               <LotPage cars={cars} soldCount={soldCars.length} session={session}
-                onAdd={() => setEditing("new")} onEdit={setEditing} onSell={setSelling} onDelete={setConfirmDelete}
-                onImportSeed={importSeed} />
+                onAdd={() => setEditing("new")} onEdit={setEditing} onSell={setSelling} onDelete={setConfirmDelete} />
             )}
             {page === "sales" && <SalesPage soldCars={soldCars} onEdit={setEditing} />}
             {page === "customers" && (
@@ -482,18 +399,11 @@ function Dashboard({ session, onLogout }) {
 
 /* ================= lot page ================= */
 
-function LotPage({ cars, soldCount, session, onAdd, onEdit, onSell, onDelete, onImportSeed }) {
+function LotPage({ cars, soldCount, session, onAdd, onEdit, onSell, onDelete }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [locFilter, setLocFilter] = useState("All");
   const [sortBy, setSortBy] = useState("newest");
-  const [showImport, setShowImport] = useState(false);
-
-  const seedMissing = useMemo(() => {
-    const existing = new Set(cars.map(seedSig));
-    return SEED_CARS.filter((s) => !existing.has(seedSig(s))).length;
-  }, [cars]);
-
   const usedLocations = useMemo(() => {
     const set = new Set(LOCATIONS);
     cars.forEach((c) => c.location && set.add(c.location));
@@ -571,29 +481,9 @@ function LotPage({ cars, soldCount, session, onAdd, onEdit, onSell, onDelete, on
           <option value="stock">Stock # order</option>
         </select>
         <div style={{ flex: 1 }} />
-        {seedMissing > 0 && (
-          <button className="btn-quiet" style={{ borderColor: "#F5D547", background: "#FFFBEA", fontWeight: 600 }} onClick={() => setShowImport(true)}>
-            ⬇ Import listed inventory ({seedMissing})
-          </button>
-        )}
         {cars.length > 0 && <button className="btn-quiet" onClick={exportCSV}>Export CSV</button>}
         <button className="btn-primary" onClick={onAdd}>+ Add a car</button>
       </div>
-
-      {showImport && (
-        <Modal title={"Import " + seedMissing + " cars from your listing?"} onClose={() => setShowImport(false)}>
-          <p style={{ fontSize: 14, color: "#5B616B", marginTop: 0 }}>
-            This adds the cars from your Best Auto Bargain listings — the Acuras, BMWs, Cadillacs, Fords, Jeeps, Lexuses, Subarus, Toyotas, and everything else — with year, trim, mileage, color, asking price, and full specs in the notes. Stock numbers are auto-assigned (BAB-001, BAB-002…) and you can edit them anytime. Cars already on your lot are skipped, so it's safe to click even if you imported before.
-          </p>
-          <p style={{ fontSize: 13, color: "#8A5A00", background: "#FBF1DC", borderRadius: 6, padding: "9px 12px" }}>
-            Purchase prices aren't in the listing, so "what you paid" is left blank — fill those in with Edit so your margins and profit numbers are real.
-          </p>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button className="btn-quiet" onClick={() => setShowImport(false)}>Not now</button>
-            <button className="btn-primary" onClick={() => { onImportSeed(); setShowImport(false); }}>Import {seedMissing} cars</button>
-          </div>
-        </Modal>
-      )}
 
       {cars.length === 0 ? (
         <div style={{ background: "#fff", border: "1px dashed #C9CDD3", borderRadius: 10, padding: "60px 24px", textAlign: "center" }}>
