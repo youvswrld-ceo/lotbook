@@ -1,13 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { collection, deleteDoc, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "./firebase";
 
 /* ================= helpers ================= */
-
-// Not real cryptography — just avoids storing raw passwords in plain sight.
-const scramble = (str) => {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-  return "h" + h.toString(36) + "_" + str.length;
-};
 
 // Forgiving number parsing — accepts "11,500", "$11500", "64k", etc.
 const num = (v) => {
@@ -42,10 +38,6 @@ const daysBetween = (a, b) => {
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
-
-const ACCOUNTS_KEY = "dlrs-accounts";
-const invKey = (email) => "dlrs-inv-" + email.toLowerCase().replace(/[^a-z0-9]/g, "_");
-const custKey = (email) => "dlrs-cust-" + email.toLowerCase().replace(/[^a-z0-9]/g, "_");
 
 const LOCATIONS = ["Front line", "Back lot", "Showroom", "At mechanic", "At detail", "At auction", "Out on test drive", "Off-site"];
 const COST_CATEGORIES = ["Mechanical", "Body / paint", "Detail", "Tires", "Transport", "Parts", "Fees / title", "Other"];
@@ -83,32 +75,41 @@ const reconTotal = (c) => (c.costs || []).reduce((s, x) => s + num(x.amount), 0)
 const totalIn = (c) => num(c.purchasePrice) + reconTotal(c);
 const carName = (c) => [c.year, c.make, c.model].filter(Boolean).join(" ") || "Untitled vehicle";
 
-/* ================= storage ================= */
-
-// Browser localStorage. Data lives on this device/browser only.
-// To share one lot across computers, swap these two functions for API calls
-// to a real backend (Supabase, Firebase, your own server).
-async function loadJSON(key, fallback) {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-async function saveJSON(key, value) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /* ================= root ================= */
 
 export default function App() {
-  const [session, setSession] = useState(null); // {email, dealership}
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let unsubscribeProfile = () => {};
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      unsubscribeProfile();
+      if (!user) {
+        setSession(null);
+        setAuthLoading(false);
+        return;
+      }
+
+      unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (profile) => {
+        setSession({
+          uid: user.uid,
+          email: profile.data()?.email || user.email || "",
+          dealership: profile.data()?.dealership || "My dealership",
+        });
+        setAuthLoading(false);
+      }, (error) => {
+        console.error("Unable to load user profile", error);
+        setSession({ uid: user.uid, email: user.email || "", dealership: "My dealership" });
+        setAuthLoading(false);
+      });
+    });
+    return () => {
+      unsubscribeProfile();
+      unsubscribeAuth();
+    };
+  }, []);
+
   return (
     <div style={{ minHeight: "100vh", background: "#F1F2F4", fontFamily: "'Barlow', system-ui, sans-serif", color: "#16181D" }}>
       <style>{`
@@ -154,16 +155,18 @@ export default function App() {
         .card { background: #fff; border: 1px solid #E2E4E8; border-radius: 10px; }
         .err-box { background: #FBEAEA; color: #9B1C1C; border-radius: 6px; padding: 9px 12px; font-size: 13px; margin-bottom: 14px; }
       `}</style>
-      {session
-        ? <Dashboard session={session} onLogout={() => setSession(null)} />
-        : <AuthScreen onLogin={setSession} />}
+      {authLoading
+        ? <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", color: "#5B616B" }}>Loading your account…</div>
+        : session
+          ? <Dashboard session={session} onLogout={() => signOut(auth)} />
+          : <AuthScreen />}
     </div>
   );
 }
 
 /* ================= auth ================= */
 
-function AuthScreen({ onLogin }) {
+function AuthScreen() {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -175,20 +178,29 @@ function AuthScreen({ onLogin }) {
     setErr("");
     const em = email.trim().toLowerCase();
     if (!em || !em.includes("@")) return setErr("Enter a valid email address.");
-    if (pw.length < 4) return setErr("Password needs at least 4 characters.");
+    if (pw.length < 6) return setErr("Password needs at least 6 characters.");
     setBusy(true);
-    const accounts = await loadJSON(ACCOUNTS_KEY, {});
-    if (mode === "signup") {
-      if (!dealership.trim()) { setBusy(false); return setErr("Enter your dealership name."); }
-      if (accounts[em]) { setBusy(false); return setErr("An account with that email already exists. Log in instead."); }
-      accounts[em] = { pw: scramble(pw), dealership: dealership.trim() };
-      const ok = await saveJSON(ACCOUNTS_KEY, accounts);
-      if (!ok) { setBusy(false); return setErr("Couldn't save the account. Try again."); }
-      onLogin({ email: em, dealership: dealership.trim() });
-    } else {
-      const acct = accounts[em];
-      if (!acct || acct.pw !== scramble(pw)) { setBusy(false); return setErr("Email or password doesn't match."); }
-      onLogin({ email: em, dealership: acct.dealership });
+    try {
+      if (mode === "signup") {
+        if (!dealership.trim()) return setErr("Enter your dealership name.");
+        const credential = await createUserWithEmailAndPassword(auth, em, pw);
+        await setDoc(doc(db, "users", credential.user.uid), {
+          email: em,
+          dealership: dealership.trim(),
+        });
+      } else {
+        await signInWithEmailAndPassword(auth, em, pw);
+      }
+    } catch (error) {
+      const messages = {
+        "auth/email-already-in-use": "An account with that email already exists. Log in instead.",
+        "auth/invalid-credential": "Email or password doesn't match.",
+        "auth/invalid-email": "Enter a valid email address.",
+        "auth/weak-password": "Choose a stronger password with at least 6 characters.",
+      };
+      setErr(messages[error.code] || "Couldn't authenticate. Check your details and try again.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -264,45 +276,58 @@ function Dashboard({ session, onLogout }) {
   const [saveErr, setSaveErr] = useState("");
 
   useEffect(() => {
-    loadJSON(invKey(session.email), []).then((list) =>
-      setCars(list.map((c) => ({ ...emptyCar, ...c, costs: c.costs || [] })))
-    );
-    loadJSON(custKey(session.email), []).then(setCustomers);
-  }, [session.email]);
+    const handleError = (error) => {
+      console.error("Firestore listener failed", error);
+      setSaveErr("Couldn't load the latest data. Check your connection and try again.");
+    };
+    const unsubscribeCars = onSnapshot(collection(db, "users", session.uid, "cars"), (snapshot) => {
+      setCars(snapshot.docs.map((item) => ({ ...emptyCar, ...item.data(), id: item.id, costs: item.data().costs || [] })));
+    }, handleError);
+    const unsubscribeCustomers = onSnapshot(collection(db, "users", session.uid, "customers"), (snapshot) => {
+      setCustomers(snapshot.docs.map((item) => ({ ...emptyCustomer, ...item.data(), id: item.id })));
+    }, handleError);
+    return () => {
+      unsubscribeCars();
+      unsubscribeCustomers();
+    };
+  }, [session.uid]);
 
-  const persistCars = async (next) => {
-    setCars(next);
-    const ok = await saveJSON(invKey(session.email), next);
-    setSaveErr(ok ? "" : "Couldn't save changes to storage — your last edit may not persist.");
-  };
-  const persistCustomers = async (next) => {
-    setCustomers(next);
-    const ok = await saveJSON(custKey(session.email), next);
-    setSaveErr(ok ? "" : "Couldn't save changes to storage — your last edit may not persist.");
+  const runWrite = async (operation, onSuccess) => {
+    setSaveErr("");
+    try {
+      await operation();
+      onSuccess();
+    } catch (error) {
+      console.error("Firestore write failed", error);
+      setSaveErr("Couldn't save your changes. Check your connection and try again.");
+    }
   };
 
   const upsertCar = (car) => {
-    const next = car.id
-      ? cars.map((c) => (c.id === car.id ? car : c))
-      : [...cars, { ...car, id: "c" + Date.now() + Math.random().toString(36).slice(2, 6) }];
-    persistCars(next);
-    setEditing(null);
+    const { id, ...data } = car;
+    const carRef = id ? doc(db, "users", session.uid, "cars", id) : doc(collection(db, "users", session.uid, "cars"));
+    runWrite(() => id ? updateDoc(carRef, data) : setDoc(carRef, data), () => setEditing(null));
   };
-  const removeCar = (id) => { persistCars(cars.filter((c) => c.id !== id)); setConfirmDelete(null); };
+  const removeCar = (id) => runWrite(
+    () => deleteDoc(doc(db, "users", session.uid, "cars", id)),
+    () => setConfirmDelete(null),
+  );
 
-  const markSold = (id, soldPrice, dateSold) => {
-    persistCars(cars.map((c) => (c.id === id ? { ...c, status: "Sold", soldPrice, dateSold } : c)));
-    setSelling(null);
-  };
+  const markSold = (id, soldPrice, dateSold) => runWrite(
+    () => updateDoc(doc(db, "users", session.uid, "cars", id), { status: "Sold", soldPrice, dateSold }),
+    () => setSelling(null),
+  );
 
   const upsertCustomer = (cust) => {
-    const next = cust.id
-      ? customers.map((c) => (c.id === cust.id ? cust : c))
-      : [...customers, { ...cust, id: "u" + Date.now() + Math.random().toString(36).slice(2, 6), date: cust.date || today() }];
-    persistCustomers(next);
-    setEditingCust(null);
+    const { id, ...data } = cust;
+    const customerRef = id ? doc(db, "users", session.uid, "customers", id) : doc(collection(db, "users", session.uid, "customers"));
+    const customerData = { ...data, date: data.date || today() };
+    runWrite(() => id ? updateDoc(customerRef, customerData) : setDoc(customerRef, customerData), () => setEditingCust(null));
   };
-  const removeCustomer = (id) => { persistCustomers(customers.filter((c) => c.id !== id)); setConfirmDeleteCust(null); };
+  const removeCustomer = (id) => runWrite(
+    () => deleteDoc(doc(db, "users", session.uid, "customers", id)),
+    () => setConfirmDeleteCust(null),
+  );
 
   const soldCars = useMemo(() => {
     if (!cars) return [];

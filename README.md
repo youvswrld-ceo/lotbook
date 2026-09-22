@@ -3,10 +3,32 @@
 Track cars, repair costs, customers, sales, and profit.
 
 ## Run locally
-```
+```bash
 npm install
+cp .env.example .env
+# Fill in .env with your Firebase web app configuration, then:
 npm run dev
 ```
+
+## Firebase setup
+
+1. Create a Firebase project and register a Web app in the Firebase console.
+2. Enable **Email/Password** under **Authentication → Sign-in method**.
+3. Create a Firestore database.
+4. Copy `.env.example` to `.env` and enter the Web app configuration values:
+
+```dotenv
+VITE_FIREBASE_API_KEY=your_value
+VITE_FIREBASE_AUTH_DOMAIN=your_value
+VITE_FIREBASE_PROJECT_ID=your_value
+VITE_FIREBASE_STORAGE_BUCKET=your_value
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_value
+VITE_FIREBASE_APP_ID=your_value
+```
+
+The local `.env` file is ignored by Git. Add the same variables to your hosting
+provider for deployed builds. Deploy `firestore.rules` with the Firebase CLI so
+authenticated users can access only their own profile, cars, and customers.
 
 ## Deploy to Vercel
 1. Push this folder to a GitHub repo.
@@ -16,13 +38,9 @@ npm run dev
 
 Or from this folder: `npx vercel` then `npx vercel --prod`.
 
-## Important: how data is stored
-Data saves to the browser's localStorage — it lives on ONE device/browser.
-Logins are not real authentication; passwords are hashed lightly, not securely.
+## Data and accounts
 
-Fine for: your own lot, on your own computer, or demoing to other dealers.
-NOT fine for: multiple users, multiple devices, or selling as a product.
-
-To make it real, replace `loadJSON` / `saveJSON` in `src/App.jsx` with calls to a
-backend (Supabase is the fastest path — it gives you real auth + a database),
-and delete the `scramble()` password function in favor of the backend's auth.
+Lot Book uses Firebase Authentication for accounts and Cloud Firestore for live,
+shared data. Each account's dealership profile is stored at `users/{uid}`, with
+inventory and customer records in that user's `cars` and `customers`
+subcollections.
