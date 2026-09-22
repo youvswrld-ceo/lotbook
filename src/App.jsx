@@ -1,13 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { supabase } from "./supabaseClient.js";
 
 /* ================= helpers ================= */
-
-// Not real cryptography — just avoids storing raw passwords in plain sight.
-const scramble = (str) => {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-  return "h" + h.toString(36) + "_" + str.length;
-};
 
 // Forgiving number parsing — accepts "11,500", "$11500", "64k", etc.
 const num = (v) => {
@@ -43,23 +37,19 @@ const daysBetween = (a, b) => {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const ACCOUNTS_KEY = "dlrs-accounts";
-const invKey = (email) => "dlrs-inv-" + email.toLowerCase().replace(/[^a-z0-9]/g, "_");
-const custKey = (email) => "dlrs-cust-" + email.toLowerCase().replace(/[^a-z0-9]/g, "_");
-
 const LOCATIONS = ["Front line", "Back lot", "Showroom", "At mechanic", "At detail", "At auction", "Out on test drive", "Off-site"];
 const COST_CATEGORIES = ["Mechanical", "Body / paint", "Detail", "Tires", "Transport", "Parts", "Fees / title", "Other"];
 
 const emptyCar = {
-  stockNumber: "", year: "", make: "", model: "", trim: "",
+  id: null, stockNumber: "", year: "", make: "", model: "", trim: "",
   vin: "", mileage: "", color: "", location: "",
   purchasePrice: "", askingPrice: "", soldPrice: "",
   status: "Available", dateAcquired: "", dateSold: "", notes: "",
-  costs: [], // {id, desc, category, amount, date}
+  costs: [],
 };
 
 const emptyCustomer = {
-  name: "", phone: "", email: "", interestedIn: "",
+  id: null, name: "", phone: "", email: "", interestedIn: "",
   status: "New lead", date: "", notes: "",
 };
 
@@ -69,7 +59,8 @@ const STATUS_STYLES = {
   Sold:      { bg: "#E9ECF6", fg: "#243B8A", dot: "#3554C8" },
 };
 
-const CUST_STATUSES = ["New lead", "Contacted", "Test drive", "Negotiating", "Bought", "Lost"];const CUST_STYLES = {
+const CUST_STATUSES = ["New lead", "Contacted", "Test drive", "Negotiating", "Bought", "Lost"];
+const CUST_STYLES = {
   "New lead":    { bg: "#E9ECF6", fg: "#243B8A" },
   "Contacted":   { bg: "#EDEEF1", fg: "#3A3E46" },
   "Test drive":  { bg: "#FBF1DC", fg: "#8A5A00" },
@@ -78,37 +69,108 @@ const CUST_STATUSES = ["New lead", "Contacted", "Test drive", "Negotiating", "Bo
   "Lost":        { bg: "#FBEAEA", fg: "#9B1C1C" },
 };
 
-// what the car has cost you so far: purchase + all repairs/recon
 const reconTotal = (c) => (c.costs || []).reduce((s, x) => s + num(x.amount), 0);
 const totalIn = (c) => num(c.purchasePrice) + reconTotal(c);
 const carName = (c) => [c.year, c.make, c.model].filter(Boolean).join(" ") || "Untitled vehicle";
 
-/* ================= storage ================= */
+/* ================= DB mapping ================= */
 
-// Browser localStorage. Data lives on this device/browser only.
-// To share one lot across computers, swap these two functions for API calls
-// to a real backend (Supabase, Firebase, your own server).
-async function loadJSON(key, fallback) {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-async function saveJSON(key, value) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch {
-    return false;
-  }
-}
+const carFromDB = (row) => ({
+  id: row.id,
+  stockNumber: row.stock_number || "",
+  year: row.year || "",
+  make: row.make || "",
+  model: row.model || "",
+  trim: row.trim || "",
+  vin: row.vin || "",
+  mileage: row.mileage || "",
+  color: row.color || "",
+  location: row.location || "",
+  purchasePrice: row.purchase_price || "",
+  askingPrice: row.asking_price || "",
+  soldPrice: row.sold_price || "",
+  status: row.status || "Available",
+  dateAcquired: row.date_acquired || "",
+  dateSold: row.date_sold || "",
+  notes: row.notes || "",
+  costs: (row.car_costs || []).map((x) => ({
+    id: x.id, desc: x.description || "", category: x.category || "Mechanical",
+    amount: x.amount || "", date: x.date || "",
+  })),
+});
+
+const carToDB = (car) => ({
+  stock_number: car.stockNumber,
+  year: car.year,
+  make: car.make,
+  model: car.model,
+  trim: car.trim,
+  vin: car.vin,
+  mileage: car.mileage,
+  color: car.color,
+  location: car.location,
+  purchase_price: car.purchasePrice,
+  asking_price: car.askingPrice,
+  sold_price: car.soldPrice,
+  status: car.status,
+  date_acquired: car.dateAcquired,
+  date_sold: car.dateSold,
+  notes: car.notes,
+});
+
+const custFromDB = (row) => ({
+  id: row.id,
+  name: row.name || "",
+  phone: row.phone || "",
+  email: row.email || "",
+  interestedIn: row.interested_in || "",
+  status: row.status || "New lead",
+  notes: row.notes || "",
+  date: row.date || "",
+});
+
+const custToDB = (c) => ({
+  name: c.name,
+  phone: c.phone,
+  email: c.email,
+  interested_in: c.interestedIn,
+  status: c.status,
+  notes: c.notes,
+  date: c.date,
+});
 
 /* ================= root ================= */
 
 export default function App() {
-  const [session, setSession] = useState(null); // {email, dealership}
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        loadDealership(data.session.user).then((d) => {
+          setSession({ user: data.session.user, dealership: d });
+          setAuthReady(true);
+        });
+      } else {
+        setAuthReady(true);
+      }
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, sbSession) => {
+      (async () => {
+        if (sbSession) {
+          const d = await loadDealership(sbSession.user);
+          setSession({ user: sbSession.user, dealership: d });
+        } else {
+          setSession(null);
+        }
+      })();
+    });
+
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   return (
     <div style={{ minHeight: "100vh", background: "#F1F2F4", fontFamily: "'Barlow', system-ui, sans-serif", color: "#16181D" }}>
       <style>{`
@@ -154,16 +216,30 @@ export default function App() {
         .card { background: #fff; border: 1px solid #E2E4E8; border-radius: 10px; }
         .err-box { background: #FBEAEA; color: #9B1C1C; border-radius: 6px; padding: 9px 12px; font-size: 13px; margin-bottom: 14px; }
       `}</style>
-      {session
-        ? <Dashboard session={session} onLogout={() => setSession(null)} />
-        : <AuthScreen onLogin={setSession} />}
+      {!authReady
+        ? <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#5B616B" }}>Loading…</div>
+        : session
+          ? <Dashboard session={session} onLogout={() => supabase.auth.signOut()} />
+          : <AuthScreen />}
     </div>
   );
 }
 
+/* ================= dealership lookup ================= */
+
+async function loadDealership(user) {
+  const { data, error } = await supabase
+    .from("dealerships")
+    .select("name")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error || !data) return { name: user.email };
+  return { name: data.name };
+}
+
 /* ================= auth ================= */
 
-function AuthScreen({ onLogin }) {
+function AuthScreen() {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -177,18 +253,23 @@ function AuthScreen({ onLogin }) {
     if (!em || !em.includes("@")) return setErr("Enter a valid email address.");
     if (pw.length < 4) return setErr("Password needs at least 4 characters.");
     setBusy(true);
-    const accounts = await loadJSON(ACCOUNTS_KEY, {});
+
     if (mode === "signup") {
       if (!dealership.trim()) { setBusy(false); return setErr("Enter your dealership name."); }
-      if (accounts[em]) { setBusy(false); return setErr("An account with that email already exists. Log in instead."); }
-      accounts[em] = { pw: scramble(pw), dealership: dealership.trim() };
-      const ok = await saveJSON(ACCOUNTS_KEY, accounts);
-      if (!ok) { setBusy(false); return setErr("Couldn't save the account. Try again."); }
-      onLogin({ email: em, dealership: dealership.trim() });
+      const { data, error } = await supabase.auth.signUp({ email: em, password: pw });
+      if (error) { setBusy(false); return setErr(authMsg(error.message)); }
+      if (data.user) {
+        const { error: dErr } = await supabase
+          .from("dealerships")
+          .insert({ id: data.user.id, name: dealership.trim() });
+        if (dErr) {
+          setBusy(false);
+          return setErr("Account created but couldn't save dealership name. Try logging in.");
+        }
+      }
     } else {
-      const acct = accounts[em];
-      if (!acct || acct.pw !== scramble(pw)) { setBusy(false); return setErr("Email or password doesn't match."); }
-      onLogin({ email: em, dealership: acct.dealership });
+      const { error } = await supabase.auth.signInWithPassword({ email: em, password: pw });
+      if (error) { setBusy(false); return setErr(authMsg(error.message)); }
     }
   };
 
@@ -248,6 +329,14 @@ function AuthScreen({ onLogin }) {
   );
 }
 
+function authMsg(msg) {
+  const m = msg.toLowerCase();
+  if (m.includes("already registered")) return "An account with that email already exists. Log in instead.";
+  if (m.includes("invalid login")) return "Email or password doesn't match.";
+  if (m.includes("rate limit")) return "Too many attempts. Wait a moment and try again.";
+  return msg;
+}
+
 /* ================= dashboard shell ================= */
 
 const TABS = [["lot", "The lot"], ["sales", "Sales"], ["customers", "Customers"], ["reports", "Reports"]];
@@ -256,53 +345,144 @@ function Dashboard({ session, onLogout }) {
   const [cars, setCars] = useState(null);
   const [customers, setCustomers] = useState(null);
   const [page, setPage] = useState("lot");
-  const [editing, setEditing] = useState(null);        // car or "new"
-  const [selling, setSelling] = useState(null);        // car
-  const [confirmDelete, setConfirmDelete] = useState(null); // car
-  const [editingCust, setEditingCust] = useState(null); // customer or "new"
+  const [editing, setEditing] = useState(null);
+  const [selling, setSelling] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editingCust, setEditingCust] = useState(null);
   const [confirmDeleteCust, setConfirmDeleteCust] = useState(null);
   const [saveErr, setSaveErr] = useState("");
 
+  const dealershipName = session.dealership?.name || session.user.email;
+  const email = session.user.email;
+
+  const loadCars = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("cars")
+      .select("*, car_costs(*)")
+      .order("created_at", { ascending: false });
+    if (error) { setSaveErr("Couldn't load your inventory from the database."); return []; }
+    return data.map(carFromDB);
+  }, []);
+
+  const loadCustomers = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) { setSaveErr("Couldn't load your customers from the database."); return []; }
+    return data.map(custFromDB);
+  }, []);
+
   useEffect(() => {
-    loadJSON(invKey(session.email), []).then((list) =>
-      setCars(list.map((c) => ({ ...emptyCar, ...c, costs: c.costs || [] })))
-    );
-    loadJSON(custKey(session.email), []).then(setCustomers);
-  }, [session.email]);
+    setCars(null);
+    setCustomers(null);
+    loadCars().then(setCars);
+    loadCustomers().then(setCustomers);
+  }, [loadCars, loadCustomers]);
 
-  const persistCars = async (next) => {
-    setCars(next);
-    const ok = await saveJSON(invKey(session.email), next);
-    setSaveErr(ok ? "" : "Couldn't save changes to storage — your last edit may not persist.");
-  };
-  const persistCustomers = async (next) => {
-    setCustomers(next);
-    const ok = await saveJSON(custKey(session.email), next);
-    setSaveErr(ok ? "" : "Couldn't save changes to storage — your last edit may not persist.");
+  // ---- car CRUD ----
+
+  const upsertCar = async (car) => {
+    setSaveErr("");
+    const dbCar = carToDB(car);
+    let carId = car.id;
+
+    try {
+      if (car.id) {
+        const { error } = await supabase.from("cars").update(dbCar).eq("id", car.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from("cars").insert(dbCar).select("id").single();
+        if (error) throw error;
+        carId = data.id;
+      }
+
+      // Sync costs: delete removed, update existing, insert new
+      const { data: existingCosts, error: ecErr } = await supabase
+        .from("car_costs")
+        .select("id")
+        .eq("car_id", carId);
+      if (ecErr) throw ecErr;
+
+      const keptIds = new Set((car.costs || []).filter((c) => c.id && !String(c.id).startsWith("x")).map((c) => c.id));
+      const toDelete = (existingCosts || []).filter((c) => !keptIds.has(c.id)).map((c) => c.id);
+      if (toDelete.length) {
+        const { error: dErr } = await supabase.from("car_costs").delete().in("id", toDelete);
+        if (dErr) throw dErr;
+      }
+
+      for (const c of car.costs || []) {
+        if (!c.desc && !num(c.amount)) continue;
+        const payload = {
+          description: c.desc,
+          category: c.category,
+          amount: c.amount,
+          date: c.date,
+        };
+        if (c.id && !String(c.id).startsWith("x")) {
+          const { error: uErr } = await supabase.from("car_costs").update(payload).eq("id", c.id);
+          if (uErr) throw uErr;
+        } else {
+          const { error: iErr } = await supabase.from("car_costs").insert({ ...payload, car_id: carId });
+          if (iErr) throw iErr;
+        }
+      }
+
+      const fresh = await loadCars();
+      setCars(fresh);
+      setEditing(null);
+    } catch (e) {
+      setSaveErr("Couldn't save the car: " + (e.message || "unknown error"));
+    }
   };
 
-  const upsertCar = (car) => {
-    const next = car.id
-      ? cars.map((c) => (c.id === car.id ? car : c))
-      : [...cars, { ...car, id: "c" + Date.now() + Math.random().toString(36).slice(2, 6) }];
-    persistCars(next);
-    setEditing(null);
+  const removeCar = async (id) => {
+    setSaveErr("");
+    const { error } = await supabase.from("cars").delete().eq("id", id);
+    if (error) { setSaveErr("Couldn't delete the car."); return; }
+    setCars((prev) => (prev || []).filter((c) => c.id !== id));
+    setConfirmDelete(null);
   };
-  const removeCar = (id) => { persistCars(cars.filter((c) => c.id !== id)); setConfirmDelete(null); };
 
-  const markSold = (id, soldPrice, dateSold) => {
-    persistCars(cars.map((c) => (c.id === id ? { ...c, status: "Sold", soldPrice, dateSold } : c)));
+  const markSold = async (id, soldPrice, dateSold) => {
+    setSaveErr("");
+    const { error } = await supabase
+      .from("cars")
+      .update({ status: "Sold", sold_price: soldPrice, date_sold: dateSold })
+      .eq("id", id);
+    if (error) { setSaveErr("Couldn't record the sale."); return; }
+    setCars((prev) => (prev || []).map((c) => (c.id === id ? { ...c, status: "Sold", soldPrice, dateSold } : c)));
     setSelling(null);
   };
 
-  const upsertCustomer = (cust) => {
-    const next = cust.id
-      ? customers.map((c) => (c.id === cust.id ? cust : c))
-      : [...customers, { ...cust, id: "u" + Date.now() + Math.random().toString(36).slice(2, 6), date: cust.date || today() }];
-    persistCustomers(next);
-    setEditingCust(null);
+  // ---- customer CRUD ----
+
+  const upsertCustomer = async (cust) => {
+    setSaveErr("");
+    const dbCust = custToDB({ ...cust, date: cust.date || today() });
+    try {
+      if (cust.id) {
+        const { error } = await supabase.from("customers").update(dbCust).eq("id", cust.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("customers").insert(dbCust);
+        if (error) throw error;
+      }
+      const fresh = await loadCustomers();
+      setCustomers(fresh);
+      setEditingCust(null);
+    } catch (e) {
+      setSaveErr("Couldn't save the customer: " + (e.message || "unknown error"));
+    }
   };
-  const removeCustomer = (id) => { persistCustomers(customers.filter((c) => c.id !== id)); setConfirmDeleteCust(null); };
+
+  const removeCustomer = async (id) => {
+    setSaveErr("");
+    const { error } = await supabase.from("customers").delete().eq("id", id);
+    if (error) { setSaveErr("Couldn't delete the customer."); return; }
+    setCustomers((prev) => (prev || []).filter((c) => c.id !== id));
+    setConfirmDeleteCust(null);
+  };
 
   const soldCars = useMemo(() => {
     if (!cars) return [];
@@ -318,8 +498,8 @@ function Dashboard({ session, onLogout }) {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="plate">LOT BOOK</span>
             <div>
-              <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 19, letterSpacing: ".03em", lineHeight: 1.1 }}>{session.dealership}</div>
-              <div style={{ fontSize: 11, color: "#9BA1AB" }}>{session.email}</div>
+              <div style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 19, letterSpacing: ".03em", lineHeight: 1.1 }}>{dealershipName}</div>
+              <div style={{ fontSize: 11, color: "#9BA1AB" }}>{email}</div>
             </div>
           </div>
           <button className="btn-quiet" style={{ background: "transparent", color: "#C9CDD3", borderColor: "#3A3E46" }} onClick={onLogout}>Log out</button>
@@ -336,7 +516,7 @@ function Dashboard({ session, onLogout }) {
                 letterSpacing: ".06em", textTransform: "uppercase",
                 color: page === id ? "#fff" : "#9BA1AB",
                 padding: "10px 16px 12px", whiteSpace: "nowrap",
-                borderBottom: page === id ? "3px solid #F5D547" : "3px solid transparent",
+                borderBottom: page === id ? "3px solid #F5D537" : "3px solid transparent",
               }}>
               {label}
               {id === "sales" && soldCars.length > 0 ? ` (${soldCars.length})` : ""}
@@ -353,7 +533,7 @@ function Dashboard({ session, onLogout }) {
           <>
             {saveErr && <div className="err-box">{saveErr}</div>}
             {page === "lot" && (
-              <LotPage cars={cars} soldCount={soldCars.length} session={session}
+              <LotPage cars={cars} soldCount={soldCars.length} dealershipName={dealershipName}
                 onAdd={() => setEditing("new")} onEdit={setEditing} onSell={setSelling} onDelete={setConfirmDelete} />
             )}
             {page === "sales" && <SalesPage soldCars={soldCars} onEdit={setEditing} />}
@@ -399,7 +579,7 @@ function Dashboard({ session, onLogout }) {
 
 /* ================= lot page ================= */
 
-function LotPage({ cars, soldCount, session, onAdd, onEdit, onSell, onDelete }) {
+function LotPage({ cars, soldCount, dealershipName, onAdd, onEdit, onSell, onDelete }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [locFilter, setLocFilter] = useState("All");
@@ -450,7 +630,7 @@ function LotPage({ cars, soldCount, session, onAdd, onEdit, onSell, onDelete }) 
     const blob = new Blob([rows.join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = session.dealership.replace(/\s+/g, "-").toLowerCase() + "-inventory.csv";
+    a.download = (dealershipName || "dealership").replace(/\s+/g, "-").toLowerCase() + "-inventory.csv";
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -721,13 +901,11 @@ function CustomersPage({ customers, cars, onAdd, onEdit, onDelete }) {
 function ReportsPage({ cars, soldCars }) {
   const inStock = cars.filter((c) => c.status !== "Sold");
 
-  // aging
   const aging = inStock
     .map((c) => ({ car: c, days: c.dateAcquired ? daysBetween(c.dateAcquired, today()) : null }))
     .sort((a, b) => (b.days ?? -1) - (a.days ?? -1));
   const stale = aging.filter((a) => a.days !== null && a.days > 60).length;
 
-  // monthly breakdown
   const months = {};
   soldCars.forEach((c) => {
     const key = (c.dateSold || "").slice(0, 7);
@@ -743,7 +921,6 @@ function ReportsPage({ cars, soldCars }) {
     return new Date(Number(y), Number(m) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
   };
 
-  // best & worst flips
   const flips = soldCars.map((c) => ({ car: c, profit: num(c.soldPrice) - totalIn(c) })).sort((a, b) => b.profit - a.profit);
   const best = flips[0];
   const worst = flips.length > 1 ? flips[flips.length - 1] : null;
@@ -925,7 +1102,6 @@ function CarModal({ initial, onCancel, onSave }) {
         )}
       </Row>
 
-      {/* repair & recon costs */}
       <div style={{ background: "#F8F9FB", border: "1px solid #E2E4E8", borderRadius: 8, padding: "14px 14px 6px", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
           <span className="field-label" style={{ margin: 0 }}>🔧 Repairs, damage & other costs</span>
